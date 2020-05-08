@@ -1,28 +1,17 @@
-/**
- * (c) Facebook, Inc. and its affiliates. Confidential and proprietary.
- */
-
-//==============================================================================
-// Welcome to scripting in Spark AR Studio! Helpful links:
-//
-// Scripting Basics - https://fb.me/spark-scripting-basics
-// Reactive Programming - https://fb.me/spark-reactive-programming
-// Scripting Object Reference - https://fb.me/spark-scripting-reference
-// Changelogs - https://fb.me/spark-changelog
-//
-// For projects created with v87 onwards, JavaScript is always executed in strict mode.
-//==============================================================================
-
-// How to load in modules
 const Scene = require("Scene");
 const Time = require("Time");
-
+const FaceTracking = require("FaceTracking");
 const Animation = require("Animation");
+const Instruction = require("Instruction");
+Instruction.bind(true, "find_face");
 
-// Use export keyword to make a symbol available in scripting debug console
 export const Diagnostics = require("Diagnostics");
 
 const Materials = require("Materials");
+
+const processingText = Scene.root.find("processing_text");
+
+processingText.text = "";
 
 function animateBackground() {
   const background = Materials.get("background_mat");
@@ -35,8 +24,8 @@ function animateBackground() {
   const animation = Animation.animate(timeDriver, linearSampler);
   background.opacity = animation;
   timeDriver.start();
+  return timeDriver;
 }
-animateBackground();
 
 function animateBabyMat() {
   const mat = Materials.get("user_mat");
@@ -49,27 +38,42 @@ function animateBabyMat() {
   const animation = Animation.animate(timeDriver, linearSampler);
   mat.opacity = animation;
   timeDriver.start();
+  return timeDriver;
 }
-animateBackground();
-animateBabyMat();
+
+function startScan() {
+  Instruction.bind(false, "find_face");
+  processingText.text = "Processing...";
+  const bgDriver = animateBackground();
+  const matDriver = animateBabyMat();
+  const timeoutTimer = Time.setTimeout(() => {
+    matDriver.stop();
+    bgDriver.stop();
+    showResults();
+  }, 5000);
+}
+Time.setTimeout(startScan, 4000);
 
 const results = Scene.root.find("results");
-const processingText = Scene.root.find("processing_text");
-results.transform.y = -900;
+const resultsOffset = -900;
+results.transform.y = resultsOffset;
+results.transform.rotationX = 1;
 
 function showResults() {
-  processingText.visible = false;
+  processingText.text = "";
   const timeDriver = Animation.timeDriver({
     durationMilliseconds: 1500,
     loopCount: 1,
     mirror: false,
   });
-  const ySampler = Animation.samplers.linear(-900, -50);
+  const ySampler = Animation.samplers.linear(resultsOffset, 0);
   const rotationSampler = Animation.samplers.linear(1, 0);
   const yAnimation = Animation.animate(timeDriver, ySampler);
   const rotationAnimation = Animation.animate(timeDriver, rotationSampler);
   results.transform.y = yAnimation;
   results.transform.rotationX = rotationAnimation;
   timeDriver.start();
+  return new Promise((resolve, reject) => {
+    timeDriver.onCompleted().subscribe(resolve);
+  });
 }
-const timeoutTimer = Time.setTimeout(showResults, 5000);
